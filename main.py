@@ -155,7 +155,7 @@ while True:
 
                 # get the size of the converted file for comparison
                 logging.debug('Get local file size')
-                local_file_path = local_folder.rstrip('/') + '/' + output_file
+                local_file_path = temp_folder.rstrip('/') + '/' + output_file
                 local_file_size = os.path.getsize(local_file_path)
                 logging.debug('Local file size is: ' + str(local_file_size))
 
