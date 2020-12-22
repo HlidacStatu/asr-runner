@@ -160,7 +160,7 @@ while True:
                 logging.debug('Local file size is: ' + str(local_file_size))
 
                 # upload the converted file
-                ftp_client.upload(output_file, local_folder, remote_folder)
+                ftp_client.upload(output_file, temp_folder, remote_folder)
                 # remote_file_path = '/' + remote_folder.strip('/') + filename + ftp_client.output_format
                 ftp_file_size = ftp_client.size(output_file, remote_folder)
                 if int(local_file_size) == int(ftp_file_size):
