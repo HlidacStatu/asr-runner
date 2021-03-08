@@ -108,68 +108,77 @@ def report_failure(data):
     cleanup(temp_folder)
 
 
+def main():
+    # run an infinite loop
+    while True:
+        # check if docker image docker hlidacstatu/czech-asr:latest-stable is present
+        if not docker_installed():
+            logging.error('Could not find docker image for voice2text conversion')
+            time.sleep(600)
+            continue
+
+        task = read_queue()
+        if task:
+            logging.info('Task available, running video processing script')
+            logging.debug('Task info: ' + task.__str__())
+
+            # get arguments for the video processing script
+            arg = task['dataset'] + ' ' + task['itemid']
+            remote_folder = task['dataset']
+            filename = task['itemid']
+
+            # create temporary folder to store downloaded and coverted files
+            temp_folder = local_folder.rstrip('/') + '/' + uuid.uuid4().__str__()
+            logging.debug('Temporary local folder: ' + temp_folder)
+            os.makedirs(temp_folder)
+            # os.chdir(temp_folder)
+
+            # connect to ftp and download file
+            logging.info('Trying to download file ' + filename)
+            ftp_client = Ftps()
+            result = ftp_client.download(filename, temp_folder, remote_folder)
+
+            if result:
+                rc = run_conversion()
+                if rc == 0:
+                    logging.info('Conversion run successfully')
+
+                    # copy test file
+                    output_file = filename + ftp_client.output_format
+                    if test_phase: shutil.copy('/var/tmp/' + output_file, temp_folder)
+
+                    # get the size of the converted file for comparison
+                    logging.debug('Get local file size')
+                    local_file_path = temp_folder.rstrip('/') + '/' + output_file
+                    local_file_size = os.path.getsize(local_file_path)
+                    logging.debug('Local file size is: ' + str(local_file_size))
+
+                    # upload the converted file
+                    ftp_client.upload(output_file, temp_folder, remote_folder)
+                    # remote_file_path = '/' + remote_folder.strip('/') + filename + ftp_client.output_format
+                    ftp_file_size = ftp_client.size(output_file, remote_folder)
+                    if int(local_file_size) == int(ftp_file_size):
+                        logging.info('Converted file uploaded successfully')
+                        report_success(task)
+                    else:
+                        logging.error('Could not upload converted file')
+                        report_failure(task)
+                else:
+                    report_failure(task)
+        else:
+            time.sleep(wait)
+
+
 ################
 # Main program #
 ################
 
-# logging.basicConfig(filename='main.log', level=logging.DEBUG, format='%(asctime)s %(message)s')
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(message)s')
 
-# run an infinite loop
-while True:
-    # check if docker image docker hlidacstatu/czech-asr:latest-stable is present
-    if not docker_installed():
-        logging.error('Could not find docker image for voice2text conversion')
-        time.sleep(600)
-        continue
-
-    task = read_queue()
-    if task:
-        logging.info('Task available, running video processing script')
-        logging.debug('Task info: ' + task.__str__())
-
-        # get arguments for the video processing script
-        arg = task['dataset'] + ' ' + task['itemid']
-        remote_folder = task['dataset']
-        filename = task['itemid']
-
-        # create temporary folder to store downloaded and coverted files
-        temp_folder = local_folder.rstrip('/') + '/' + uuid.uuid4().__str__()
-        logging.debug('Temporary local folder: ' + temp_folder)
-        os.makedirs(temp_folder)
-        # os.chdir(temp_folder)
-
-        # connect to ftp and download file
-        logging.info('Trying to download file ' + filename)
-        ftp_client = Ftps()
-        result = ftp_client.download(filename, temp_folder, remote_folder)
-
-        if result:
-            rc = run_conversion()
-            if rc == 0:
-                logging.info('Conversion run successfully')
-
-                # copy test file
-                output_file = filename + ftp_client.output_format
-                if test_phase: shutil.copy('/var/tmp/' + output_file, temp_folder)
-
-                # get the size of the converted file for comparison
-                logging.debug('Get local file size')
-                local_file_path = temp_folder.rstrip('/') + '/' + output_file
-                local_file_size = os.path.getsize(local_file_path)
-                logging.debug('Local file size is: ' + str(local_file_size))
-
-                # upload the converted file
-                ftp_client.upload(output_file, temp_folder, remote_folder)
-                # remote_file_path = '/' + remote_folder.strip('/') + filename + ftp_client.output_format
-                ftp_file_size = ftp_client.size(output_file, remote_folder)
-                if int(local_file_size) == int(ftp_file_size):
-                    logging.info('Converted file uploaded successfully')
-                    report_success(task)
-                else:
-                    logging.error('Could not upload converted file')
-                    report_failure(task)
-            else:
-                report_failure(task)
-    else:
+if __name__ == "__main__":
+    # logging.basicConfig(filename='main.log', level=logging.DEBUG, format='%(asctime)s %(message)s')
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(message)s')
+    try:
+        main()
+    except:
+        logging.exception('Could not run main() function')
         time.sleep(wait)
